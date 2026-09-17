@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// orca-computer CLI for Windows. Same subcommands/flags as the macOS Swift binary;
+// computer-use CLI for Windows. Same subcommands/flags as the macOS Swift binary;
 // backed by upstream runtime.ps1 via mcp/win32-provider.mjs. On macOS use the native
-// binary (native/computer-use-macos/.build/release/orca-computer) instead.
+// binary (native/computer-use-macos/.build/release/computer-use) instead.
 import { readFileSync } from "node:fs";
 import { createRuntime, createWin32Provider } from "../mcp/win32-provider.mjs";
 
@@ -23,24 +23,24 @@ const FLAGS_TO_ARGS = {
   "--no-screenshot": "no_screenshot",
 };
 
-const usage = `orca-computer (Windows) — UIA-backed computer-use CLI
+const usage = `computer-use (Windows) — UIA-backed computer-use CLI
 
-usage: node cli/orca-computer.mjs <command> [flags]
+usage: node cli/computer-use.mjs <command> [flags]
 
 commands: permissions | capabilities | list-apps | list-windows | get-app-state | click |
   perform-secondary-action | set-value | type-text | press-key | hotkey | paste-text | scroll | drag
 
 examples:
-  node cli/orca-computer.mjs list-apps --json
-  node cli/orca-computer.mjs get-app-state --app notepad --json
-  node cli/orca-computer.mjs click --app notepad --element-index 3 --json
+  node cli/computer-use.mjs list-apps --json
+  node cli/computer-use.mjs get-app-state --app notepad --json
+  node cli/computer-use.mjs click --app notepad --element-index 3 --json
 
 app selector on Windows: process name (notepad / notepad.exe), pid:<n>, or exact window title.
 element indexes come from the latest get-app-state treeText (first token per line).`;
 
 function fail(message, { json = false, code = "invalid_argument" } = {}) {
   const payload = { error: { code, message } };
-  console.log(json ? JSON.stringify(payload) : `orca-computer: ${message}`);
+  console.log(json ? JSON.stringify(payload) : `computer-use: ${message}`);
   process.exit(1);
 }
 

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-// CLI layer over the same in-process Provider the Orca app-agent socket exposes.
+// CLI layer over the same in-process Provider the upstream app-agent socket exposes.
 // Subcommand semantics mirror upstream skill-guides/computer-use.md.
 // Screenshots arrive as base64 PNG inside the provider result; --json writes them
 // to disk and reports result.screenshot.path instead of the payload.
@@ -138,7 +138,7 @@ enum StandaloneCLI {
             case "screenshots":
                 url = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
             default:
-                fail("usage: orca-computer permissions --open accessibility|screenshots", exitCode: 2)
+                fail("usage: computer-use permissions --open accessibility|screenshots", exitCode: 2)
             }
             NSWorkspace.shared.open(URL(string: url)!)
             exit(0)
@@ -158,7 +158,7 @@ enum StandaloneCLI {
             return result
         }
         let path = outPath ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("orca-computer-\(UUID().uuidString).png").path
+            .appendingPathComponent("computer-use-\(UUID().uuidString).png").path
         do {
             try png.write(to: URL(fileURLWithPath: path))
         } catch {
@@ -229,16 +229,16 @@ enum StandaloneCLI {
                 print(text)
             }
         } else {
-            FileHandle.standardError.write(Data("orca-computer: \(message)\n".utf8))
+            FileHandle.standardError.write(Data("computer-use: \(message)\n".utf8))
         }
         exit(exitCode)
     }
 
     private static func usage() -> String {
         """
-        orca-computer — standalone macOS computer-use CLI (no Orca desktop app required)
+        computer-use — standalone macOS computer-use CLI (no desktop app required)
 
-        usage: orca-computer <command> [flags]
+        usage: computer-use <command> [flags]
 
         commands:
           permissions [--open accessibility|screenshots]   check TCC permission state

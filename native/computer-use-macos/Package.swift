@@ -13,8 +13,8 @@ let package = Package(
             targets: ["OrcaComputerUseMacOSCore"]
         ),
         .executable(
-            name: "orca-computer",
-            targets: ["orca-computer"]
+            name: "computer-use",
+            targets: ["computer-use"]
         )
     ],
     targets: [
@@ -23,7 +23,7 @@ let package = Package(
             path: "Sources/OrcaComputerUseMacOSCore"
         ),
         .executableTarget(
-            name: "orca-computer",
+            name: "computer-use",
             dependencies: ["OrcaComputerUseMacOSCore"],
             path: "Sources/OrcaComputerUseMacOS"
         ),

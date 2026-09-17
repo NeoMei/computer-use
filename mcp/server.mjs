@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Minimal MCP server wrapping the orca-computer CLI (no dependencies).
+// Minimal MCP server wrapping the computer-use CLI (no dependencies).
 // Local stdio server: newline-delimited JSON-RPC 2.0, tools/list + tools/call.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BIN =
-  process.env.ORCA_COMPUTER_BIN ||
-  path.join(pkgRoot, "native", "computer-use-macos", ".build", "release", "orca-computer");
+  process.env.COMPUTER_USE_BIN ||
+  path.join(pkgRoot, "native", "computer-use-macos", ".build", "release", "computer-use");
 
 const str = (desc) => ({ type: "string", description: desc });
 const obj = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
@@ -167,7 +167,7 @@ function cliArgs(name, a = {}) {
 function callCli(args) {
   return new Promise((resolve) => {
     if (!existsSync(BIN)) {
-      resolve({ exitCode: 127, stdout: "", stderr: `orca-computer binary not found at ${BIN}; run: swift build -c release in ${path.join(pkgRoot, "native", "computer-use-macos")}` });
+      resolve({ exitCode: 127, stdout: "", stderr: `computer-use binary not found at ${BIN}; run: swift build -c release in ${path.join(pkgRoot, "native", "computer-use-macos")}` });
       return;
     }
     const child = spawn(BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -182,11 +182,11 @@ function callCli(args) {
 async function handleToolCall(name, a) {
   if (process.platform === "win32") {
     const { createRuntime, createWin32Provider } = await import("./win32-provider.mjs");
-    if (!globalThis.__orcaWin32) {
-      globalThis.__orcaWin32 = createWin32Provider(createRuntime());
+    if (!globalThis.__win32Provider) {
+      globalThis.__win32Provider = createWin32Provider(createRuntime());
     }
     try {
-      const result = await globalThis.__orcaWin32(name, a);
+      const result = await globalThis.__win32Provider(name, a);
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     } catch (error) {
       const payload = { error: { code: error.code ?? "provider_error", message: String(error.message ?? error) } };
@@ -195,7 +195,7 @@ async function handleToolCall(name, a) {
   }
   const { exitCode, stdout, stderr } = await callCli(cliArgs(name, a));
   let text = stdout.trim();
-  if (!text) text = stderr.trim() || `orca-computer ${name} exited with code ${exitCode}`;
+  if (!text) text = stderr.trim() || `computer-use ${name} exited with code ${exitCode}`;
   // Surface the screenshot inline when one was captured, so multimodal clients can see it.
   try {
     const parsed = JSON.parse(text);
@@ -222,7 +222,7 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
       result = {
         protocolVersion: msg.params?.protocolVersion ?? "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "orca-computer", version: "1.0.0" },
+        serverInfo: { name: "computer-use", version: "1.0.0" },
       };
       break;
     case "tools/list":

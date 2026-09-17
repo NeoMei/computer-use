@@ -2,7 +2,7 @@
 # Requires: Node.js on PATH; run from an interactive desktop session (not a service).
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Cli = Join-Path $Root "cli\orca-computer.mjs"
+$Cli = Join-Path $Root "cli\computer-use.mjs"
 function Invoke-Cli { node $Cli @args }
 
 Write-Host "== 1. permissions =="
@@ -33,7 +33,7 @@ try {
     Write-Host "post-click window: $($click.snapshot.window.title) | elements: $($click.snapshot.elementCount)"
 
     Write-Host "== 5. set-value + readback =="
-    $probe = "orca-demo-probe $(Get-Date -Format yyyyMMddHHmmss)"
+    $probe = "computer-use-demo-probe $(Get-Date -Format yyyyMMddHHmmss)"
     $set = Invoke-Cli set-value --app notepad --element-index $index --value $probe --json | ConvertFrom-Json
     if ($set.error) { throw "set-value failed: $($set.error.code) $($set.error.message)" }
     $after = Invoke-Cli get-app-state --app notepad --no-screenshot --json | ConvertFrom-Json

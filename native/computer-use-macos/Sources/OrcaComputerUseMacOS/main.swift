@@ -7,7 +7,7 @@ import ImageIO
 import OrcaComputerUseMacOSCore
 import ScreenCaptureKit
 
-private let providerName = "orca-computer-use-macos"
+private let providerName = "computer-use-macos"
 private let providerVersion = "1.0.0"
 private let providerProtocolVersion = 1
 
@@ -611,7 +611,7 @@ final class Provider {
             // should open macOS privacy prompts/settings; runtime calls stay quiet.
             throw ProviderError.coded(
                 "permission_denied",
-                "Accessibility permission is required for Orca Computer Use. Run `orca computer permissions` or open Settings > Computer Use, grant Accessibility to Orca Computer Use, then retry."
+                "Accessibility permission is required for computer-use. Run `computer-use permissions --open accessibility` or open System Settings, grant Accessibility to the app launching computer-use, then retry."
             )
         }
         let appElement = AXUIElementCreateApplication(app.pid)
@@ -648,7 +648,7 @@ final class Provider {
         let screenshotStatus: ScreenshotStatus = if screenshot != nil {
             .captured
         } else if includeScreenshot && !canCaptureScreenshot {
-            .failed("Screen Recording permission is required for Orca Computer Use; grant permission or pass --no-screenshot to inspect accessibility state only.")
+            .failed("Screen Recording permission is required for computer-use; grant permission or pass --no-screenshot to inspect accessibility state only.")
         } else if includeScreenshot {
             .failed("window screenshot capture returned no image; retry with --no-screenshot if accessibility state is sufficient.")
         } else {
@@ -1128,7 +1128,7 @@ private func focusedWindow(appElement: AXUIElement, app: AppDescriptor, visibleW
         if let window = settledWindow, outcome.settled {
             return window
         }
-        throw ProviderError.coded("permission_denied", "app '\(app.name)' has visible windows but no accessibility window (AX reads stayed blocked for \(outcome.waitedMs)ms after retries). macOS Accessibility may need Orca Computer Use toggled off and on again in System Settings.")
+        throw ProviderError.coded("permission_denied", "app '\(app.name)' has visible windows but no accessibility window (AX reads stayed blocked for \(outcome.waitedMs)ms after retries). macOS Accessibility may need the host app's grant toggled off and on again in System Settings.")
     }
     throw ProviderError.coded("window_not_found", "app '\(app.name)' has no accessibility window; make sure the app has a visible window, then retry with --restore-window.")
 }
@@ -2464,7 +2464,7 @@ private struct WindowCapture {
     }
 
     private static func captureImage(windowId: CGWindowID, bounds: CGRect) -> CapturedImage? {
-        if ProcessInfo.processInfo.environment["ORCA_COMPUTER_USE_SCK_SCREENSHOTS"] == "1",
+        if ProcessInfo.processInfo.environment["COMPUTER_USE_SCK_SCREENSHOTS"] == "1",
            let image = captureImageWithScreenCaptureKit(windowId: windowId, bounds: bounds) {
             return CapturedImage(image: image, engine: "screenCaptureKit")
         }
@@ -2998,7 +2998,7 @@ private final class PermissionWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Enable Orca Computer Use"
+        window.title = "Enable computer-use"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.backgroundColor = PermissionPalette.background
@@ -3124,9 +3124,9 @@ private enum PermissionKind: CaseIterable {
     var dragInstruction: String {
         switch self {
         case .accessibility:
-            "Drag Orca Computer Use into the list above to allow Accessibility."
+            "Drag the app that launches computer-use into the list above to allow Accessibility."
         case .screenshots:
-            "Drag Orca Computer Use into the list above to allow Screenshots."
+            "Drag the app that launches computer-use into the list above to allow Screenshots."
         }
     }
 
@@ -3228,14 +3228,14 @@ private final class PermissionView: NSView {
 
         let titleText = checking
             ? "Checking Computer Use"
-            : (ready ? "Computer Use is Ready" : "Enable Orca Computer Use")
+            : (ready ? "Computer Use is Ready" : "Enable computer-use")
         let title = label(titleText, size: 22, weight: .bold)
         let subtitle = label(
             checking
                 ? "Checking Accessibility and Screenshots."
                 : (ready
-                    ? "Orca can use local apps when you ask."
-                    : "Grant permissions so Orca can use apps when you ask."),
+                    ? "computer-use can control local apps when you ask."
+                    : "Grant permissions so computer-use can use apps when you ask."),
             size: 12,
             weight: .regular
         )
@@ -3325,7 +3325,7 @@ private final class PermissionView: NSView {
         let target = ButtonTarget(action)
         button.target = target
         button.action = #selector(ButtonTarget.run)
-        objc_setAssociatedObject(button, "orca-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(button, "computer-use-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         button.translatesAutoresizingMaskIntoConstraints = false
 
         row.addSubview(iconView)
@@ -3364,7 +3364,7 @@ private final class PermissionView: NSView {
         let target = ButtonTarget(close)
         button.target = target
         button.action = #selector(ButtonTarget.run)
-        objc_setAssociatedObject(button, "orca-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(button, "computer-use-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: 82).isActive = true
         button.heightAnchor.constraint(equalToConstant: 32).isActive = true
@@ -3407,7 +3407,7 @@ private final class PermissionDragAssistantController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Drag Orca Computer Use"
+        window.title = "Drag computer-use"
         window.backgroundColor = .clear
         window.isOpaque = false
         window.isReleasedWhenClosed = false
@@ -3734,7 +3734,7 @@ private final class PermissionDragAssistantView: NSView {
         let target = ButtonTarget(close)
         closeButton.target = target
         closeButton.action = #selector(ButtonTarget.run)
-        objc_setAssociatedObject(closeButton, "orca-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(closeButton, "computer-use-action", target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 
         let instruction = label(permission.dragInstruction, size: 12, weight: .semibold)
         instruction.textColor = PermissionPalette.primaryText
@@ -3819,7 +3819,7 @@ private final class DraggableAppTile: NSView, NSDraggingSource {
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
 
-        let title = NSTextField(labelWithString: "Orca Computer Use")
+        let title = NSTextField(labelWithString: "computer-use")
         title.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
         title.textColor = PermissionPalette.primaryText
         title.translatesAutoresizingMaskIntoConstraints = false
@@ -4157,7 +4157,7 @@ private func runAgent(socketPath: String, token: String?) {
     let delegate = AgentRuntime(socketPath: socketPath, token: token)
     app.delegate = delegate
     // Why: SCK is reliable once this code runs as a signed app with a real TCC identity.
-    setenv("ORCA_COMPUTER_USE_SCK_SCREENSHOTS", "1", 1)
+    setenv("COMPUTER_USE_SCK_SCREENSHOTS", "1", 1)
     app.run()
 }
 
@@ -4192,7 +4192,7 @@ private func writePermissionStatus(to path: String) {
 }
 
 private func runStdio() {
-    fputs("Orca Computer Use provider must be launched by Orca in app-agent mode,\n", stderr)
+    fputs("computer-use provider must be launched by its desktop host in app-agent mode,\n", stderr)
     fputs("or run standalone with --allow-standalone (stdio JSON-RPC) or a CLI subcommand.\n", stderr)
     exit(13)
 }
@@ -4201,7 +4201,7 @@ private func runStdio() {
 // One {id, method, params} request per line -> one {id, ok, result|error} response per line.
 // Token and peer gating are disabled here; the operator explicitly opted in with the flag.
 private func runStandaloneStdio() {
-    fputs("orca-computer: standalone stdio mode, token/peer checks disabled\n", stderr)
+    fputs("computer-use: standalone stdio mode, token/peer checks disabled\n", stderr)
     let provider = Provider()
     let lock = NSLock()
     while let line = readLine(from: STDIN_FILENO) {
@@ -4317,7 +4317,7 @@ private func writeAll(_ data: Data, to fd: Int32) -> Bool {
 let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.first == "--agent" {
     guard arguments.count >= 2 else {
-        fputs("usage: orca-computer-use-macos --agent <socket-path> --token-file <token-path>\n", stderr)
+        fputs("usage: computer-use-macos --agent <socket-path> --token-file <token-path>\n", stderr)
         exit(2)
     }
     let tokenFileIndex = arguments.firstIndex(of: "--token-file")
@@ -4329,7 +4329,7 @@ if arguments.first == "--agent" {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
     guard let token, !token.isEmpty else {
-        fputs("orca-computer-use-macos --agent requires a non-empty --token-file\n", stderr)
+        fputs("computer-use-macos --agent requires a non-empty --token-file\n", stderr)
         exit(2)
     }
     runAgent(socketPath: arguments[1], token: token)
@@ -4341,7 +4341,7 @@ if arguments.first == "--agent" {
     printPermissionStatus()
 } else if arguments.first == "--permission-status-file" {
     guard arguments.count >= 2 else {
-        fputs("usage: orca-computer-use-macos --permission-status-file <path>\n", stderr)
+        fputs("usage: computer-use-macos --permission-status-file <path>\n", stderr)
         exit(2)
     }
     writePermissionStatus(to: arguments[1])

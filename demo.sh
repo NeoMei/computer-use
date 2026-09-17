@@ -4,8 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PKG="$ROOT/native/computer-use-macos"
-BIN="$PKG/.build/release/orca-computer"
-TMP="$(mktemp -d /tmp/orca-demo.XXXXXX)"
+BIN="$PKG/.build/release/computer-use"
+TMP="$(mktemp -d /tmp/computer-use-demo.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
 [ -x "$BIN" ] || (cd "$PKG" && swift build -c release)
@@ -14,7 +14,7 @@ echo "== 1. permissions =="
 "$BIN" permissions --json
 if ! "$BIN" permissions --json | grep -q '"accessibility":"granted"'; then
   echo "FAIL: Accessibility permission missing. Run: $BIN permissions --open accessibility"
-  echo "(grant it to the app that launches orca-computer, e.g. your terminal or OpenChamber)"
+  echo "(grant it to the app that launches computer-use, e.g. your terminal or OpenChamber)"
   exit 1
 fi
 if ! "$BIN" permissions --json | grep -q '"screenshots":"granted"'; then

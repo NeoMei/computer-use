@@ -1,6 +1,6 @@
-# 交接文档 — orca-computer-use-standalone（GitHub 仓库：computer-use）
+# 交接文档 — computer-use-standalone（GitHub 仓库：computer-use）
 
-> 从 [stablyai/orca](https://github.com/stablyai/orca) 提取的独立 macOS + Windows computer-use 引擎（CLI / stdio JSON-RPC / opencode MCP），不依赖 Orca 桌面程序。上游 MIT，本仓库沿用 MIT（见 LICENSE）。
+> 独立 macOS + Windows computer-use 引擎（CLI / stdio JSON-RPC / opencode MCP），不依赖任何桌面宿主程序。上游 MIT，本仓库沿用 MIT（见 LICENSE）。
 
 ## 1. 当前状态
 
@@ -14,12 +14,12 @@
 ```
 computer-use/
 ├── native/computer-use-macos/          # 上游 Swift 包（最小修改，见 §6）
-│   └── .build/release/orca-computer    # 本地构建产物（不入库，swift build -c release 重新生成）
+│   └── .build/release/computer-use    # 本地构建产物（不入库，swift build -c release 重新生成）
 ├── native/computer-use-windows/runtime.ps1   # 上游原样复用，未改动（PowerShell + UIA）
 ├── mcp/server.mjs                      # MCP server（零 npm 依赖，stdio，按平台路由）
 ├── mcp/win32-provider.mjs              # Windows 适配层：我们的契约 ↔ runtime.ps1（--self-test 自检）
-├── cli/orca-computer.mjs               # Windows CLI（与 macOS 二进制同子命令/同参数面）
-├── cli/orca-computer.cmd               # Windows 命令行 shim
+├── cli/computer-use.mjs               # Windows CLI（与 macOS 二进制同子命令/同参数面）
+├── cli/computer-use.cmd               # Windows 命令行 shim
 ├── opencode.json                       # 项目级 opencode MCP 配置（在仓库根目录打开 opencode 即生效）
 ├── demo.sh                             # macOS 端到端自检
 ├── demo.ps1                            # Windows 端到端自检
@@ -30,16 +30,16 @@ computer-use/
 ## 3. macOS 快速上手
 
 ```bash
-cd native/computer-use-macos && swift build -c release   # 产物 .build/release/orca-computer
+cd native/computer-use-macos && swift build -c release   # 产物 .build/release/computer-use
 cd ../..
 
-# 权限（一次性）：授给启动 orca-computer 的那个 App（终端/OpenChamber 等）
-.build/release/orca-computer permissions --json
-.build/release/orca-computer permissions --open accessibility
-.build/release/orca-computer permissions --open screenshots
+# 权限（一次性）：授给启动 computer-use 的那个 App（终端/OpenChamber 等）
+.build/release/computer-use permissions --json
+.build/release/computer-use permissions --open accessibility
+.build/release/computer-use permissions --open screenshots
 
 ./demo.sh                                                # 端到端自检
-native/computer-use-macos/.build/release/orca-computer get-app-state --app com.apple.finder --json
+native/computer-use-macos/.build/release/computer-use get-app-state --app com.apple.finder --json
 ```
 
 要点：
@@ -56,12 +56,12 @@ opencode / 其他客户端
 mcp/server.mjs ── macOS: 每次调用 spawn CLI（swift 二进制）
       │           └─ Windows: 常驻 runtime.ps1 -Serve（NDJSON，先发 {"ready":true}）
       ▼
-CLI 子命令（orca-computer <cmd>）/ stdio JSON-RPC（--allow-standalone）
+CLI 子命令（computer-use <cmd>）/ stdio JSON-RPC（--allow-standalone）
       ▼
 Provider（上游 Swift）/ runtime.ps1（上游 PowerShell+UIA）
 ```
 
-stdio 协议（macOS，`--allow-standalone` 显式开启，旁路 token/peer 门禁；不带参数仍然拒绝服务，Orca 桌面 `--agent` 模式不受影响）：
+stdio 协议（macOS，`--allow-standalone` 显式开启，旁路 token/peer 门禁；不带参数仍然拒绝服务，上游 `--agent` 桌面模式不受影响）：
 
 ```
 → {"id":1,"method":"handshake","params":{}}
@@ -85,23 +85,23 @@ git clone https://github.com/NeoMei/computer-use.git
 cd computer-use
 
 node mcp\win32-provider.mjs --self-test        # 1. 适配层逻辑（应输出 self-test OK）
-cli\orca-computer.cmd list-apps --json         # 2. 进程枚举（应列出有主窗口的应用）
-cli\orca-computer.cmd get-app-state --app notepad --json   # 3. 树 + 截图落盘
+cli\computer-use.cmd list-apps --json         # 2. 进程枚举（应列出有主窗口的应用）
+cli\computer-use.cmd get-app-state --app notepad --json   # 3. 树 + 截图落盘
 .\demo.ps1                                     # 4. 端到端：notepad 截屏→UIA树→点击→写入→回读，应输出 DEMO OK
 ```
 
-> 真机验证记录（2026-09-17，Win11 + Node 24.18）：4 项全过；另补测一次性 CLI `set-value`+回读、MCP `initialize`/`tools/list`（13 工具）/`tools/call` 写入闭环，均通过。环境注意：`HKCU\Software\Microsoft\Command Processor\AutoRun = "chcp 65001"`（中文开发机常见）会让 `.cmd` shim 的 stdout 混入 `Active code page: 65001`，破坏 `--json` 解析——此类机器清单命令改用 `node cli\orca-computer.mjs`（demo.ps1 直调 node，不受影响）。
+> 真机验证记录（2026-09-17，Win11 + Node 24.18）：4 项全过；另补测一次性 CLI `set-value`+回读、MCP `initialize`/`tools/list`（13 工具）/`tools/call` 写入闭环，均通过。环境注意：`HKCU\Software\Microsoft\Command Processor\AutoRun = "chcp 65001"`（中文开发机常见）会让 `.cmd` shim 的 stdout 混入 `Active code page: 65001`，破坏 `--json` 解析——此类机器清单命令改用 `node cli\computer-use.mjs`（demo.ps1 直调 node，不受影响）。
 
-然后接入 opencode（仓库根目录的 `opencode.json` 已配好，直接在该目录打开 opencode 即可；全局配置则把 `mcp` 块加进 `~/.config/opencode/opencode.json`，`command` 用绝对路径）。验收：opencode 里列出 13 个 orca-computer 工具，成功调用 `get_app_state`。
+然后接入 opencode（仓库根目录的 `opencode.json` 已配好，直接在该目录打开 opencode 即可；全局配置则把 `mcp` 块加进 `~/.config/opencode/opencode.json`，`command` 用绝对路径）。验收：opencode 里列出 13 个 computer-use 工具，成功调用 `get_app_state`。
 
 Windows 侧语义差异（与 macOS 对齐处已在适配层抹平，但选择器不同）：
 - app 选择器 = 进程名（`notepad` / `notepad.exe`）、`pid:<n>` 或精确窗口标题；无 bundle id。
 - `list_windows` 只报告进程主窗口（上游 MainWindowHandle 方案）。
 - 键盘类操作要求目标窗口前台，失败会报 `window_not_focused`，用 `--restore-window` 重试。
 
-## 6. 相对上游 orca 的改动（全部最小化）
+## 6. 相对上游的改动（全部最小化）
 
-- `Package.swift`：可执行 target/product 改名 `orca-computer`（路径未动，上游源码安全测试不受影响）。
+- `Package.swift`：可执行 target/product 改名 `computer-use`（路径未动，上游源码安全测试不受影响）。
 - `main.swift` 三处：
   1. `runStandaloneStdio()`：`--allow-standalone` 启用 stdio 行式 JSON-RPC，该模式下旁路 token+peer 门禁；`terminate` 无 runloop 直退；默认无参行为不变（仍 exit 13）。
   2. `permissionStatusSnapshotSettled()` 改 internal 供 CLI 使用。
@@ -109,7 +109,7 @@ Windows 侧语义差异（与 macOS 对齐处已在适配层抹平，但选择�
 - 新增 `StandaloneCLI.swift`：CLI 层（子命令、截图落盘、stdin 传值、JSON/pretty 输出）。
 - 其余（`runtime.ps1`、`mcp/`、`cli/`、demo 脚本）为本仓库新增；上游 runtime.ps1 **零改动**，便于跟上游同步。
 
-从上游同步：`runtime.ps1` / `computer-use-macos` 有更新时，直接从 stablyai/orca 对应目录覆盖，重跑 `swift build` + demo 即可。
+从上游同步：`runtime.ps1` / `computer-use-macos` 有更新时，直接从上游仓库对应目录覆盖，重跑 `swift build` + demo 即可。
 
 ## 7. 已知坑（都踩过，别再踩）
 
@@ -119,7 +119,7 @@ Windows 侧语义差异（与 macOS 对齐处已在适配层抹平，但选择�
 4. macOS 截屏引擎走 legacy `CGWindowListCreateImage`（未签名 CLI 用 ScreenCaptureKit 不可靠，上游注释原话）；deprecation 警告属预期。
 5. `swift test` 需要完整 Xcode（仅 Command Line Tools 时 XCTest 模块缺失）；不影响 `swift build`。
 6. 合成键盘/鼠标输入按上游设计报 `unverified (synthetic input)`，必须以回读状态为准，不要当成失败重试。
-7. **cmd AutoRun 污染输出**：注册表 `HKCU\Software\Microsoft\Command Processor\AutoRun`（中文开发机常配 `chcp 65001`）会让所有经 `.cmd` 的调用在 stdout 混入 banner 行，`--json` 解析随即失败；改用 `node cli\orca-computer.mjs` 直调（demo.ps1 不受影响）。
+7. **cmd AutoRun 污染输出**：注册表 `HKCU\Software\Microsoft\Command Processor\AutoRun`（中文开发机常配 `chcp 65001`）会让所有经 `.cmd` 的调用在 stdout 混入 banner 行，`--json` 解析随即失败；改用 `node cli\computer-use.mjs` 直调（demo.ps1 不受影响）。
 
 ## 8. 后续工作建议
 

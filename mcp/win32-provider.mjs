@@ -1,4 +1,4 @@
-// Windows adapter: upstream native/computer-use-windows/runtime.ps1 -> orca-computer contract.
+// Windows adapter: upstream native/computer-use-windows/runtime.ps1 -> computer-use contract.
 // runtime.ps1 -Serve speaks NDJSON ({"ready":true} banner, requestId echo); ops are flat
 // {tool, app, element:{index,runtimeId}, ...}. This module maps MCP/CLI calls onto it and
 // normalizes responses to the same shape the macOS CLI/stdio path produces.
@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const RUNTIME_PS1 =
-  process.env.ORCA_RUNTIME_PS1 ||
+  process.env.COMPUTER_USE_RUNTIME_PS1 ||
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "native", "computer-use-windows", "runtime.ps1");
 
 const WINDOWS_TOOLS = new Set([
@@ -114,7 +114,7 @@ export function normalizeResponse(tool, response, writePng = defaultWritePng) {
 
 function defaultWritePng(base64, meta) {
   const png = Buffer.from(base64, "base64");
-  const file = path.join(os.tmpdir(), `orca-computer-${crypto.randomUUID()}.png`);
+  const file = path.join(os.tmpdir(), `computer-use-${crypto.randomUUID()}.png`);
   writeFileSync(file, png);
   return { path: file, bytes: png.length, ...meta };
 }
@@ -159,7 +159,7 @@ export function createRuntime({
   // rejection would otherwise surface as an unhandled rejection and crash the process.
   isReady.catch(() => {});
   let killed = false;
-  child.stderr.on("data", (d) => process.stderr.write(`[orca-runtime] ${d}`));
+  child.stderr.on("data", (d) => process.stderr.write(`[computer-use-runtime] ${d}`));
   child.on("exit", (code) => {
     const error = providerError("provider_error", `runtime.ps1 exited ${killed ? "after kill()" : `unexpectedly (code ${code})`}`);
     ready.reject(error);
