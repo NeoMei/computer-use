@@ -29,12 +29,17 @@ try {
 
     Write-Host "== 4. click element $index =="
     $click = Invoke-Cli click --app notepad --element-index $index --json | ConvertFrom-Json
+    if ($click.error) { throw "click failed: $($click.error.code) $($click.error.message)" }
     Write-Host "post-click window: $($click.snapshot.window.title) | elements: $($click.snapshot.elementCount)"
 
-    Write-Host "== 5. state readback =="
+    Write-Host "== 5. set-value + readback =="
+    $probe = "orca-demo-probe $(Get-Date -Format yyyyMMddHHmmss)"
+    $set = Invoke-Cli set-value --app notepad --element-index $index --value $probe --json | ConvertFrom-Json
+    if ($set.error) { throw "set-value failed: $($set.error.code) $($set.error.message)" }
     $after = Invoke-Cli get-app-state --app notepad --no-screenshot --json | ConvertFrom-Json
-    $changed = $state.snapshot.treeText -ne $after.snapshot.treeText
-    Write-Host "tree changed: $changed (read/write loop verified)"
+    if ($after.error) { throw "readback failed: $($after.error.code) $($after.error.message)" }
+    if (-not ($after.snapshot.treeText -match [regex]::Escape($probe))) { throw "readback tree did not contain the written value" }
+    Write-Host "readback contains probe value (read/write loop verified)"
     Write-Host "DEMO OK"
 } finally {
     Stop-Process -Name notepad -ErrorAction SilentlyContinue

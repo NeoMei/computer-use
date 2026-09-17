@@ -155,9 +155,13 @@ export function createRuntime({
   const isReady = new Promise((resolve, reject) => {
     ready = { resolve, reject };
   });
+  // One-shot callers (e.g. the permissions CLI path) never await readiness; an exit
+  // rejection would otherwise surface as an unhandled rejection and crash the process.
+  isReady.catch(() => {});
+  let killed = false;
   child.stderr.on("data", (d) => process.stderr.write(`[orca-runtime] ${d}`));
   child.on("exit", (code) => {
-    const error = providerError("provider_error", `runtime.ps1 exited unexpectedly (code ${code})`);
+    const error = providerError("provider_error", `runtime.ps1 exited ${killed ? "after kill()" : `unexpectedly (code ${code})`}`);
     ready.reject(error);
     for (const p of pending.values()) p.reject(error);
     pending.clear();
@@ -184,7 +188,7 @@ export function createRuntime({
     return response;
   }
 
-  return { request, kill: () => child.kill() };
+  return { request, kill: () => { killed = true; child.kill(); } };
 }
 
 // ---- high-level tool call ----------------------------------------------------
@@ -197,6 +201,18 @@ export function createWin32Provider(runtime) {
       return { accessibility: "not-required", screenshots: "not-required" };
     }
     const tool = mcpToolToRuntimeTool(name);
+    // One-shot CLI parity with macOS (fresh-snapshot index resolution): when an
+    // element index is requested with no cached snapshot for that app, take one
+    // now so the index resolves against the latest tree instead of failing.
+    const appKey = String(args.app ?? "").toLowerCase();
+    const needsElement = ["element_index", "from_element_index", "to_element_index"]
+      .some((k) => args[k] !== undefined && args[k] !== null);
+    if (needsElement && appKey && !snapshotCache.has(appKey)) {
+      const response = await runtime.request({ tool: "get_app_state", app: args.app, noScreenshot: true });
+      if (!response || response.ok !== true) throw mapRuntimeError(response?.error ?? "unknown runtime error");
+      const elements = response.snapshot?.elements ?? [];
+      if (elements.length) snapshotCache.set(appKey, elements);
+    }
     const op = buildOp(tool, args, snapshotCache);
     const response = await runtime.request(op);
     const result = normalizeResponse(tool, response);
