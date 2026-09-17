@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "orca-computer": {
+      "type": "local",
+      "command": ["node", "mcp/server.mjs"],
+      "enabled": true
+    }
+  }
+}

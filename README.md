@@ -1,0 +1,142 @@
+# orca-computer-use-standalone
+
+Standalone macOS **and Windows** computer-use CLI / MCP server extracted from [stablyai/orca](https://github.com/stablyai/orca)'s native modules. No Orca desktop app required — the accessibility/screenshot/input engine talks JSON-RPC and CLI directly.
+
+```
+orca-computer-use-standalone/
+├── native/computer-use-macos/        # upstream Swift package (minimally modified)
+│   └── .build/release/orca-computer  # built macOS binary
+├── native/computer-use-windows/      # upstream runtime.ps1 (PowerShell + UIA, unmodified)
+├── mcp/server.mjs                    # dependency-free MCP server (stdio, both platforms)
+├── mcp/win32-provider.mjs            # Windows adapter: contract <-> runtime.ps1 (self-testable)
+├── cli/orca-computer.mjs + .cmd      # Windows CLI (same subcommands as the macOS binary)
+├── opencode.json                     # project-level opencode MCP config
+├── demo.sh                           # macOS end-to-end self check
+└── demo.ps1                          # Windows end-to-end self check
+```
+
+## Build
+
+Requires macOS 14+ and Swift 6 toolchain (Xcode or Command Line Tools).
+
+```bash
+cd native/computer-use-macos
+swift build -c release
+# binary: .build/release/orca-computer
+```
+
+(`swift test` additionally needs full Xcode for the XCTest module; Command Line Tools alone cannot build the test target.)
+
+## Permissions (one-time)
+
+The binary needs **Accessibility** (AX tree + actions) and **Screen Recording** (screenshots). Grant them to whichever app actually launches `orca-computer` — a bare binary inherits the TCC identity of its parent app (Terminal, iTerm, OpenChamber, ...). Check state and open the right Settings pane:
+
+```bash
+.build/release/orca-computer permissions --json
+.build/release/orca-computer permissions --open accessibility
+.build/release/orca-computer permissions --open screenshots
+```
+
+## CLI
+
+```bash
+C=native/computer-use-macos/.build/release/orca-computer
+
+$C permissions --json
+$C capabilities --json
+$C list-apps --json
+$C list-windows --app com.apple.finder --json
+$C get-app-state --app com.apple.finder --json          # treeText + screenshot saved to disk (result.screenshot.path)
+$C get-app-state --app com.apple.finder --no-screenshot --json
+$C click --app com.apple.finder --element-index 12 --json
+$C click --app com.apple.finder --x 100 --y 200 --modifiers CmdOrCtrl+Shift --json
+$C set-value --app com.apple.finder --element-index 3 --value "hello" --json
+$C type-text --app com.apple.finder --text "hello" --json
+$C press-key --app com.apple.finder --key Return --json
+$C hotkey --app com.apple.finder --key CmdOrCtrl+A --json
+$C scroll --app com.apple.finder --element-index 5 --direction down --json
+$C drag --app com.apple.finder --from-x 100 --from-y 100 --to-x 300 --to-y 300 --json
+```
+
+Semantics mirror upstream `skill-guides/computer-use.md`: element indexes come from the latest snapshot's `treeText` (first token of each line) and go stale after UI changes — always re-read state between actions. `--json` output puts the screenshot PNG on disk and reports `result.screenshot.path` (or pass `--screenshot-out <path>`); without `--json` you get a human summary. `--value-stdin` / `--text-stdin` read sensitive payloads from stdin instead of argv.
+
+## stdio JSON-RPC mode (machine protocol)
+
+```bash
+orca-computer --allow-standalone
+```
+
+Line-delimited: one request per line, one response per line. **`--allow-standalone` is required explicitly** — it disables the upstream token + peer-process gating (Orca desktop compatibility is preserved: `--agent <socket> --token-file <path>` behaves exactly as before, and a bare invocation still refuses to serve).
+
+```json
+{"id": 1, "method": "handshake", "params": {}}
+{"id": 2, "method": "getAppState", "params": {"app": "Finder"}}
+{"id": 3, "method": "click", "params": {"app": "Finder", "elementIndex": 12}}
+```
+
+Responses: `{"id": 1, "ok": true, "result": {...}}` or `{"id": 1, "ok": false, "error": {"code": "...", "message": "..."}}`. Methods: `handshake`, `listApps`, `listWindows`, `getAppState`, `click`, `performSecondaryAction`, `setValue`, `typeText`, `pressKey`, `hotkey`, `pasteText`, `scroll`, `drag`, `terminate`. In this mode screenshots stay inline base64 (`result.screenshot.data`).
+
+## opencode MCP
+
+The repo includes a project-level config (open opencode in this directory):
+
+```json
+{
+  "mcp": {
+    "orca-computer": {
+      "type": "local",
+      "command": ["node", "mcp/server.mjs"],
+      "enabled": true
+    }
+  }
+}
+```
+
+For a global setup add the same `mcp` block to `~/.config/opencode/opencode.json` with an absolute path to `mcp/server.mjs`. The server exposes 13 tools (`list_apps`, `get_app_state`, `click`, `set_value`, `type_text`, `press_key`, `hotkey`, `paste_text`, `scroll`, `drag`, `list_windows`, `permissions`, `capabilities`) and routes by platform: on macOS it spawns the CLI per call; on Windows it keeps one `runtime.ps1 -Serve` process alive. Override the binary location with `ORCA_COMPUTER_BIN` (macOS) / `ORCA_RUNTIME_PS1` (Windows).
+
+## Windows
+
+No build step — Windows PowerShell 5.1 (shipped with Windows), Node.js, and an interactive desktop session are all it needs. UI Automation requires no TCC-style permission grants.
+
+```powershell
+cd native/computer-use-windows   # runtime.ps1 is upstream, unmodified
+cd ..\..
+cli\orca-computer.cmd list-apps --json
+cli\orca-computer.cmd get-app-state --app notepad --json     # treeText + screenshot.path
+cli\orca-computer.cmd click --app notepad --element-index 3 --json
+cli\orca-computer.cmd set-value --app notepad --element-index 3 --value "hello" --json
+cli\orca-computer.cmd permissions --json                     # not-required on Windows
+node mcp\win32-provider.mjs --self-test                      # adapter logic check
+.\demo.ps1                                                   # end-to-end: notepad screenshot -> tree -> click -> readback
+```
+
+Windows notes: the app selector is process name (`notepad`/`notepad.exe`), `pid:<n>`, or exact window title (no bundle ids); `list_windows` reports the process's main window only; element indexes are resolved through `{index, runtimeId}` records from the most recent snapshot (the adapter caches them per app, same freshness contract as macOS); keyboard ops require the target window foreground (`--restore-window` helps); every action needs an interactive desktop session.
+
+## Self check
+
+```bash
+./demo.sh    # macOS: permissions -> Finder screenshot -> AX tree -> click -> state readback
+```
+
+```powershell
+.\demo.ps1   # Windows: permissions -> notepad screenshot -> UIA tree -> click -> state readback
+```
+
+## Changes vs upstream
+
+- `Package.swift`: executable target/product renamed to `orca-computer` (module sanitized to `orca_computer`).
+- `Sources/OrcaComputerUseMacOS/main.swift`:
+  - `runStdio()` unlocked behind `--allow-standalone` (`runStandaloneStdio()`), token/peer checks bypassed only in that mode; `terminate` handled without a runloop.
+  - `permissionStatusSnapshotSettled()` made internal for the CLI.
+  - default no-arg behavior unchanged (refuses to serve, exit 13).
+- `Sources/OrcaComputerUseMacOS/StandaloneCLI.swift`: new CLI layer (flag → params mapping, screenshot decode → disk, pretty/JSON output).
+
+## Known limitations
+
+- Screenshot engine is the legacy `CGWindowListCreateImage` path in CLI/stdio mode (deprecated upstream API, still functional; ScreenCaptureKit path stays reserved for signed app-agent mode). Deprecation warning is expected.
+- `swift test` requires full Xcode (XCTest unavailable with Command Line Tools only).
+- Synthetic keyboard input is reported `unverified (synthetic input)` by design — verify via returned state.
+- `permissions --open` opens System Settings; the actual grant is always a manual user action.
+- App-blocklist / safety semantics from upstream (e.g. blocked bundle ids) are preserved.
+- When the target app has no real window (e.g. Finder showing only the desktop), `get-app-state` reports a confusing `permission_denied` (upstream message blames Accessibility toggling) — the actual cause is "no usable AXWindow"; open a window and retry.
+- The Windows path (adapter + CLI + demo.ps1) is unit-tested against canned runtime responses but has not yet been executed on a real Windows machine; `demo.ps1` is the first thing to run there.
