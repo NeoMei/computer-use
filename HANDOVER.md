@@ -7,7 +7,7 @@
 | 平台 | 状态 | 证据 |
 |---|---|---|
 | macOS | ✅ 全部验收通过 | `swift build` 通过；Finder 完整读写闭环（截屏落盘 → AX 树 → 点击 → 状态回读）；MCP initialize/tools/list/tools/call 全通 |
-| Windows | ⚠️ 代码交付、待真机验证 | 适配层逻辑已用 canned 响应单测通过（`node mcp/win32-provider.mjs --self-test`）；真机验证按 §5 清单执行即可 |
+| Windows | ✅ 真机验证通过（2026-09-17，Win11 + Node 24.18） | §5 清单 4 项全过；另补测一次性 CLI 写入闭环（`set-value`+回读）与 MCP 层（initialize / 13 工具 / get_app_state / set_value / click）全通。发现并修复 2 个真机 bug（commit 628ecf7）：① permissions 路径未处理 ready rejection，进程 exit=1；② 一次性 CLI 元素寻址无缓存必失败（已对齐 macOS 一次性快照解析语义） |
 
 ## 2. 目录结构
 
@@ -71,7 +71,7 @@ stdio 协议（macOS，`--allow-standalone` 显式开启，旁路 token/peer 门
 ```
 
 Windows 适配层（mcp/win32-provider.mjs）职责：
-- 元素寻址：上游 Windows 用 `{index, runtimeId}` 而非裸索引 → 适配层缓存每个 app 最近快照的 elements，把 `element_index` 解析成 runtimeId 记录（等价 macOS 版进程内快照缓存语义）。
+- 元素寻址：上游 Windows 用 `{index, runtimeId}` 而非裸索引 → 适配层缓存每个 app 最近快照的 elements，把 `element_index` 解析成 runtimeId 记录（等价 macOS 版进程内快照缓存语义）；一次性调用（CLI）无缓存时自动先取一次最新快照再解析，对齐 macOS 一次性 CLI 语义（§6.3）。
 - 响应归一化：把上游 `{ok, snapshot:{treeLines, elements, screenshotPngBase64...}}` 归一成与 macOS 相同的 `{snapshot:{window, treeText, elementCount}, screenshot:{path,bytes}, action, screenshotStatus}` 形状（截图 base64 落盘）。
 - 错误码映射：`appNotFound(...)` → `app_not_found` 等。
 - `permissions` 在 Windows 返回 `not-required`（UIA 无 TCC 类授权）。
@@ -87,8 +87,10 @@ cd computer-use
 node mcp\win32-provider.mjs --self-test        # 1. 适配层逻辑（应输出 self-test OK）
 cli\orca-computer.cmd list-apps --json         # 2. 进程枚举（应列出有主窗口的应用）
 cli\orca-computer.cmd get-app-state --app notepad --json   # 3. 树 + 截图落盘
-.\demo.ps1                                     # 4. 端到端：notepad 截屏→UIA树→点击→回读，应输出 DEMO OK
+.\demo.ps1                                     # 4. 端到端：notepad 截屏→UIA树→点击→写入→回读，应输出 DEMO OK
 ```
+
+> 真机验证记录（2026-09-17，Win11 + Node 24.18）：4 项全过；另补测一次性 CLI `set-value`+回读、MCP `initialize`/`tools/list`（13 工具）/`tools/call` 写入闭环，均通过。环境注意：`HKCU\Software\Microsoft\Command Processor\AutoRun = "chcp 65001"`（中文开发机常见）会让 `.cmd` shim 的 stdout 混入 `Active code page: 65001`，破坏 `--json` 解析——此类机器清单命令改用 `node cli\orca-computer.mjs`（demo.ps1 直调 node，不受影响）。
 
 然后接入 opencode（仓库根目录的 `opencode.json` 已配好，直接在该目录打开 opencode 即可；全局配置则把 `mcp` 块加进 `~/.config/opencode/opencode.json`，`command` 用绝对路径）。验收：opencode 里列出 13 个 orca-computer 工具，成功调用 `get_app_state`。
 
@@ -117,10 +119,10 @@ Windows 侧语义差异（与 macOS 对齐处已在适配层抹平，但选择�
 4. macOS 截屏引擎走 legacy `CGWindowListCreateImage`（未签名 CLI 用 ScreenCaptureKit 不可靠，上游注释原话）；deprecation 警告属预期。
 5. `swift test` 需要完整 Xcode（仅 Command Line Tools 时 XCTest 模块缺失）；不影响 `swift build`。
 6. 合成键盘/鼠标输入按上游设计报 `unverified (synthetic input)`，必须以回读状态为准，不要当成失败重试。
+7. **cmd AutoRun 污染输出**：注册表 `HKCU\Software\Microsoft\Command Processor\AutoRun`（中文开发机常配 `chcp 65001`）会让所有经 `.cmd` 的调用在 stdout 混入 banner 行，`--json` 解析随即失败；改用 `node cli\orca-computer.mjs` 直调（demo.ps1 不受影响）。
 
 ## 8. 后续工作建议
 
-- Windows 真机验证（§5）跑完后，把结果补进本文件和 README。
 - 考虑给 stdio/CLI 模式加可选 `--token-file`（当前 standalone 完全无鉴权，靠操作者显式 `--allow-standalone` 兜底；暴露给多用户环境前建议补上）。
 - 上游 `runtime.ps1` 的 `-Serve` 进程目前随 MCP server 生命周期存活；如遇挂死可在 server.mjs 加空闲重启。
 - 可选：MCP `tools/call` 把 `screenshot.path` 读成 `{type:"image"}` 内容返回，多模态客户端可直接看图（当前返回路径文本）。

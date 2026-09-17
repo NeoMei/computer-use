@@ -107,10 +107,12 @@ cli\orca-computer.cmd click --app notepad --element-index 3 --json
 cli\orca-computer.cmd set-value --app notepad --element-index 3 --value "hello" --json
 cli\orca-computer.cmd permissions --json                     # not-required on Windows
 node mcp\win32-provider.mjs --self-test                      # adapter logic check
-.\demo.ps1                                                   # end-to-end: notepad screenshot -> tree -> click -> readback
+.\demo.ps1                                                   # end-to-end: notepad screenshot -> tree -> click -> set-value -> readback
 ```
 
-Windows notes: the app selector is process name (`notepad`/`notepad.exe`), `pid:<n>`, or exact window title (no bundle ids); `list_windows` reports the process's main window only; element indexes are resolved through `{index, runtimeId}` records from the most recent snapshot (the adapter caches them per app, same freshness contract as macOS); keyboard ops require the target window foreground (`--restore-window` helps); every action needs an interactive desktop session.
+Verified end-to-end on a real Windows 11 machine (Node 24): the commands above, the one-shot CLI write loop (`set-value` + tree readback), the MCP write loop (13 tools, `get_app_state`/`set_value`/`click`), and `demo.ps1`. One-shot CLI element calls take a fresh `get-app-state` snapshot automatically when none is cached (macOS CLI parity); the MCP server keeps a persistent per-app cache instead.
+
+Windows notes: the app selector is process name (`notepad`/`notepad.exe`), `pid:<n>`, or exact window title (no bundle ids); `list_windows` reports the process's main window only; element indexes are resolved through `{index, runtimeId}` records from the most recent snapshot (the adapter caches them per app, same freshness contract as macOS); keyboard ops require the target window foreground (`--restore-window` helps); every action needs an interactive desktop session. A `Command Processor\AutoRun` registry entry (commonly `chcp 65001`) prints its banner into `.cmd` stdout and corrupts `--json` output — on such machines invoke `node cli\orca-computer.mjs` directly.
 
 ## Self check
 
@@ -119,7 +121,7 @@ Windows notes: the app selector is process name (`notepad`/`notepad.exe`), `pid:
 ```
 
 ```powershell
-.\demo.ps1   # Windows: permissions -> notepad screenshot -> UIA tree -> click -> state readback
+.\demo.ps1   # Windows: permissions -> notepad screenshot -> UIA tree -> click -> set-value -> readback
 ```
 
 ## Changes vs upstream
@@ -139,4 +141,3 @@ Windows notes: the app selector is process name (`notepad`/`notepad.exe`), `pid:
 - `permissions --open` opens System Settings; the actual grant is always a manual user action.
 - App-blocklist / safety semantics from upstream (e.g. blocked bundle ids) are preserved.
 - When the target app has no real window (e.g. Finder showing only the desktop), `get-app-state` reports a confusing `permission_denied` (upstream message blames Accessibility toggling) — the actual cause is "no usable AXWindow"; open a window and retry.
-- The Windows path (adapter + CLI + demo.ps1) is unit-tested against canned runtime responses but has not yet been executed on a real Windows machine; `demo.ps1` is the first thing to run there.
